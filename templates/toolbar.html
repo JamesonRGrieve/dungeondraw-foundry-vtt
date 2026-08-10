@@ -46,5 +46,17 @@
         valueAttr="value" labelAttr="name" }}
       </select>
     </div>
+    <div class="control-row-separator"></div>
+    <div class="control-tool-row">
+      {{#each row4}} {{> toolPartial}} {{/each}}
+      <select name="surfaceType" data-dtype="string">
+        {{selectOptions surfaceTypeOptions selected=surfaceType
+        valueAttr="value" labelAttr="name" }}
+      </select>
+      <select name="surfacePlacement" data-dtype="string">
+        {{selectOptions surfacePlacementOptions selected=surfacePlacement
+        valueAttr="value" labelAttr="name" }}
+      </select>
+    </div>
   </div>
 </div>

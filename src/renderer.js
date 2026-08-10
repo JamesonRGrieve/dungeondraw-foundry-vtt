@@ -4,13 +4,15 @@ import * as geo from "./geo-utils.js";
  * Render the given dungeon state into the given container.
  */
 export const render = async (container, state) => {
-  // clear everything. PlaceableObject#clear was deprecated to a no-op in v14,
-  // so destroy the previously rendered children ourselves.
   container
     .removeChildren()
     .forEach((child) => child.destroy({ children: true }));
+  // background surfaces render behind dungeon geometry (visible through windows)
+  await drawSurfaces(container, state, "background");
   // main geometry/config render pass
   await renderPass(container, state);
+  // interior surfaces render on top of floor, clipped to dungeon geometry
+  await drawSurfaces(container, state, "interior");
   // draw theme-painted areas as additional render passes
   await drawThemeAreas(container, state);
 };
@@ -250,6 +252,91 @@ const renderPass = async (container, state) => {
     container.addChild(cornerContainer);
   }
   container.addChild(doorGfx);
+};
+
+const drawSurfaces = async (container, state, placement) => {
+  if (!state.surfaces || state.surfaces.length === 0) return;
+
+  for (const surface of state.surfaces) {
+    if (surface.placement !== placement) continue;
+
+    const surfGfx = new PIXI.Graphics();
+    const color = PIXI.utils.string2hex(surface.color || "#2a4a6b");
+    const opacity = surface.opacity ?? 0.7;
+
+    let drawPoints;
+    if (placement === "interior" && state.geometry) {
+      // Clip to dungeon interior
+      try {
+        const surfPoly = geo.pointsToPolygon(surface.points);
+        const clipped = geo.intersection(state.geometry, surfPoly);
+        if (!clipped || clipped.isEmpty()) continue;
+        const coords = [];
+        for (let i = 0; i < clipped.getNumGeometries(); i++) {
+          const ring = clipped.getGeometryN(i).getExteriorRing();
+          coords.push(
+            ring
+              .getCoordinates()
+              .map((c) => [c.x, c.y])
+              .flat()
+          );
+        }
+        drawPoints = coords;
+      } catch (e) {
+        drawPoints = [surface.points.flat()];
+      }
+    } else if (placement === "background" && state.geometry) {
+      // Clip to outside dungeon geometry
+      try {
+        const surfPoly = geo.pointsToPolygon(surface.points);
+        const clipped = geo.difference(surfPoly, state.geometry);
+        if (!clipped || clipped.isEmpty()) continue;
+        const coords = [];
+        for (let i = 0; i < clipped.getNumGeometries(); i++) {
+          const ring = clipped.getGeometryN(i).getExteriorRing();
+          coords.push(
+            ring
+              .getCoordinates()
+              .map((c) => [c.x, c.y])
+              .flat()
+          );
+        }
+        drawPoints = coords;
+      } catch (e) {
+        drawPoints = [surface.points.flat()];
+      }
+    } else {
+      drawPoints = [surface.points.flat()];
+    }
+
+    if (surface.texture) {
+      try {
+        const texture = await getTexture(surface.texture);
+        if (texture?.valid) {
+          for (const pts of drawPoints) {
+            surfGfx.beginTextureFill({ texture, alpha: opacity });
+            surfGfx.drawPolygon(pts);
+            surfGfx.endFill();
+          }
+        }
+      } catch (e) {
+        // fall back to color fill
+        for (const pts of drawPoints) {
+          surfGfx.beginFill(color, opacity);
+          surfGfx.drawPolygon(pts);
+          surfGfx.endFill();
+        }
+      }
+    } else {
+      for (const pts of drawPoints) {
+        surfGfx.beginFill(color, opacity);
+        surfGfx.drawPolygon(pts);
+        surfGfx.endFill();
+      }
+    }
+
+    container.addChild(surfGfx);
+  }
 };
 
 const drawThemeAreas = async (container, state) => {

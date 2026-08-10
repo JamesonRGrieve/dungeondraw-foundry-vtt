@@ -2,6 +2,11 @@ import {
   getCustomThemes,
   getThemePainterThemeKey,
   setThemePainterThemeKey,
+  getSurfacePainterType,
+  setSurfacePainterType,
+  getSurfacePainterPlacement,
+  setSurfacePainterPlacement,
+  surfaceTypes,
   themes,
 } from "./themes.js";
 
@@ -35,6 +40,12 @@ export class DungeonDrawToolbar extends Application {
     html
       .find('select[name="themePainterThemeKey"]')
       .change(this.themeSelectChange.bind(this));
+    html
+      .find('select[name="surfaceType"]')
+      .change(this.surfaceTypeChange.bind(this));
+    html
+      .find('select[name="surfacePlacement"]')
+      .change(this.surfacePlacementChange.bind(this));
 
     // Set up context menus for tools with multiple drawing modes
     this._setupToolContextMenus(html);
@@ -148,12 +159,33 @@ export class DungeonDrawToolbar extends Application {
           isActive: game.activeDungeonDrawTool === "themepainter",
         },
       ],
+      row4: [
+        {
+          name: "surfacepainter",
+          title: "DD.ButtonTitleSurfacePainter",
+          titleSuffix: "DD.RightClickForOptions",
+          icon: "fas fa-water",
+          isActive: game.activeDungeonDrawTool === "surfacepainter",
+        },
+      ],
       themeKeys,
       themeOptions,
       themePainterThemeKey,
       themes,
       toggleAddClass,
       toggleRemoveClass,
+      surfaceTypeKeys: Object.keys(surfaceTypes),
+      surfaceTypes,
+      surfaceType: getSurfacePainterType(),
+      surfacePlacement: getSurfacePainterPlacement(),
+      surfaceTypeOptions: Object.keys(surfaceTypes).map((key) => ({
+        value: key,
+        name: surfaceTypes[key].name,
+      })),
+      surfacePlacementOptions: [
+        { value: "interior", name: "Interior" },
+        { value: "background", name: "Background" },
+      ],
     };
     return data;
   }
@@ -190,10 +222,23 @@ export class DungeonDrawToolbar extends Application {
     setThemePainterThemeKey(themeKey);
   }
 
+  surfaceTypeChange(event) {
+    setSurfacePainterType($(event.currentTarget).val());
+  }
+
+  surfacePlacementChange(event) {
+    setSurfacePainterPlacement($(event.currentTarget).val());
+  }
+
   /** Set up context menus for tools with drawing mode options */
   _setupToolContextMenus(html) {
     const toolbar = this;
-    const supportedTools = ["interiorwall", "invisiblewall", "themepainter"];
+    const supportedTools = [
+      "interiorwall",
+      "invisiblewall",
+      "themepainter",
+      "surfacepainter",
+    ];
 
     // Use custom context menu handler since Foundry's ContextMenu doesn't fit our use case well
     for (const toolName of supportedTools) {
@@ -214,6 +259,7 @@ export class DungeonDrawToolbar extends Application {
       interiorwall: ["line", "square", "ellipse", "polygon"],
       invisiblewall: ["line", "square", "ellipse", "polygon"],
       themepainter: ["square", "ellipse", "polygon", "grid"],
+      surfacepainter: ["square", "ellipse", "polygon", "grid"],
     };
 
     const modes = toolModes[tool] || [];

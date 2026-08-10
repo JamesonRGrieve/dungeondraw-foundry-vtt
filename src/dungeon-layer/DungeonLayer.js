@@ -17,6 +17,7 @@ import {
   handleInvisibleWallCompletion,
   handleStairsCompletion,
   handleThemePainterCompletion,
+  handleSurfacePainterCompletion,
   handleRoomCompletion,
   handleRemoveCompletion,
 } from "./drawing-completion.js";
@@ -34,6 +35,13 @@ function isThemePainterGrid() {
   return (
     game.activeDungeonDrawTool === "themepainter" &&
     game.dungeonDrawShapes?.themepainter === "grid"
+  );
+}
+
+function isSurfacePainterGrid() {
+  return (
+    game.activeDungeonDrawTool === "surfacepainter" &&
+    game.dungeonDrawShapes?.surfacepainter === "grid"
   );
 }
 
@@ -235,6 +243,37 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
           }
           break;
         }
+        case "surfacepainter": {
+          const snapActiveSurf =
+            Settings.snapToGrid() && game.dungeonDrawSnapActive;
+          const surfShapeMode = snapActiveSurf
+            ? "square"
+            : game.dungeonDrawShapes?.surfacepainter || "polygon";
+          if (surfShapeMode === "square") {
+            data.shape.type =
+              foundry.canvas.placeables.Drawing.SHAPE_TYPES.RECTANGLE;
+            data.shape.width = data.strokeWidth + 1;
+            data.shape.height = data.strokeWidth + 1;
+          } else if (surfShapeMode === "ellipse") {
+            data.shape.type =
+              foundry.canvas.placeables.Drawing.SHAPE_TYPES.ELLIPSE;
+            data.shape.width = data.strokeWidth + 1;
+            data.shape.height = data.strokeWidth + 1;
+          } else if (surfShapeMode === "grid") {
+            data.shape.type =
+              foundry.canvas.placeables.Drawing.SHAPE_TYPES.RECTANGLE;
+            data.shape.width = data.strokeWidth + 1;
+            data.shape.height = data.strokeWidth + 1;
+            data.strokeAlpha = 0.01;
+            data.fillAlpha = 0.01;
+          } else {
+            data.shape.type =
+              foundry.canvas.placeables.Drawing.SHAPE_TYPES.POLYGON;
+            data.shape.points = [0, 0, 1, 0];
+            data.bezierFactor = 0;
+          }
+          break;
+        }
         case "stairs":
           data.shape.type =
             foundry.canvas.placeables.Drawing.SHAPE_TYPES.POLYGON;
@@ -265,6 +304,7 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
         case "window":
         case "invisiblewall":
         case "themepainter":
+        case "surfacepainter":
         case "stairs":
           data.shape.type =
             foundry.canvas.placeables.Drawing.SHAPE_TYPES.RECTANGLE;
@@ -413,7 +453,7 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
     // Clean up gridpainter/theme painter preview drawings on cancel
     const preview = event.interactionData?.preview;
     if (
-      (isGridPainter() || isThemePainterGrid()) &&
+      (isGridPainter() || isThemePainterGrid() || isSurfacePainterGrid()) &&
       preview?.document?.flags?.gridPainterHelper?.gridDrawings?.length
     ) {
       const gridDrawings =
@@ -536,7 +576,11 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
       // Deal with freehand-tool and gridpainter-tool specific handling in DrawingShape
       if (isFreehand()) {
         onFreeHandMouseDraw(preview, event);
-      } else if (isGridPainter() || isThemePainterGrid()) {
+      } else if (
+        isGridPainter() ||
+        isThemePainterGrid() ||
+        isSurfacePainterGrid()
+      ) {
         onGridPainterMouseDraw(preview, event);
       } else {
         preview._onMouseDraw(event);
@@ -558,6 +602,12 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
         (themePainterShapeMode === "square" ||
           themePainterShapeMode === "ellipse" ||
           themePainterShapeMode === "grid");
+      const surfacePainterShapeMode = game.dungeonDrawShapes?.surfacepainter;
+      const isNonPolygonSurfacePainter =
+        opcode === "addsurfacepainter" &&
+        (surfacePainterShapeMode === "square" ||
+          surfacePainterShapeMode === "ellipse" ||
+          surfacePainterShapeMode === "grid");
       if (
         !preview.isPolygon ||
         isFreehand() ||
@@ -567,6 +617,7 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
         opcode === "addwindow" ||
         isNonPolygonWallMode ||
         isNonPolygonThemePainter ||
+        isNonPolygonSurfacePainter ||
         opcode === "addgridpainter" ||
         opcode === "addstairs"
       ) {
@@ -813,6 +864,8 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
         if (shouldReturn) return;
       } else if (opcode === "addthemepainter") {
         await handleThemePainterCompletion(ctx);
+      } else if (opcode === "addsurfacepainter") {
+        await handleSurfacePainterCompletion(ctx);
       } else if (minDistance || completePolygon) {
         // Room shapes and remove operations
         if (opcode.startsWith("add")) {

@@ -18,7 +18,8 @@ export class DungeonState {
     invisibleWallShapes,
     stairs,
     windows,
-    config
+    config,
+    surfaces
   ) {
     this.geometry = geometry;
     this.themeAreas = themeAreas;
@@ -31,6 +32,7 @@ export class DungeonState {
     this.stairs = stairs;
     this.windows = windows;
     this.config = config;
+    this.surfaces = surfaces || [];
   }
 
   static startState() {
@@ -45,7 +47,8 @@ export class DungeonState {
       [],
       [],
       [],
-      defaultConfig()
+      defaultConfig(),
+      []
     );
   }
 
@@ -69,7 +72,8 @@ export class DungeonState {
         : [],
       this.stairs ? JSON.parse(JSON.stringify(this.stairs)) : [],
       this.windows ? [...this.windows] : [],
-      JSON.parse(JSON.stringify(this.config))
+      JSON.parse(JSON.stringify(this.config)),
+      this.surfaces ? JSON.parse(JSON.stringify(this.surfaces)) : []
     );
   }
 
@@ -89,6 +93,7 @@ export class DungeonState {
       stairs: this.stairs,
       windows: this.windows,
       config: this.config,
+      surfaces: this.surfaces,
     });
   }
 
@@ -112,6 +117,7 @@ export class DungeonState {
       : [];
     const stairs = obj.stairs ? obj.stairs : [];
     const windows = obj.windows ? obj.windows : [];
+    const surfaces = obj.surfaces ? obj.surfaces : [];
     // fill in any new defaults
     const config = foundry.utils.mergeObject(defaultConfig(), obj.config);
     return new DungeonState(
@@ -125,7 +131,8 @@ export class DungeonState {
       invisibleWallShapes,
       stairs,
       windows,
-      config
+      config,
+      surfaces
     );
   }
 
