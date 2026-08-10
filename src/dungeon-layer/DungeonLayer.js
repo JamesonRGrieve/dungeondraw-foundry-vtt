@@ -350,6 +350,17 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
   async _onClickLeft(event) {
     const { preview, drawingsState, destination } = event.interactionData;
 
+    // Handle room painter — single click applies theme to the clicked room
+    if (game.activeDungeonDrawTool === "roompainter" && this.dungeon) {
+      const pos = destination || event.interactionData.origin;
+      if (game.activeDungeonDrawMode === "add") {
+        await this.dungeon.paintRoomAtPoint(pos.x, pos.y);
+      } else {
+        await this.dungeon.removeThemeAreaAtPoint(pos.x, pos.y);
+      }
+      return;
+    }
+
     // Handle stairs phase 1 finalization (third click)
     if (
       isStairs() &&
@@ -462,6 +473,9 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
 
   /** @override */
   async _onDragLeftStart(event) {
+    // Room painter is click-only, no drag drawing
+    if (game.activeDungeonDrawTool === "roompainter") return;
+
     // Deliberately not calling super: as of v14 PlaceablesLayer#_onDragLeftStart
     // builds its own core Drawing preview out of the active tool's palette data,
     // which we neither have nor want. Through v13 it only cleared the preview

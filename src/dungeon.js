@@ -809,6 +809,59 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
     }
   }
 
+  async removeThemeAreaAtPoint(x, y) {
+    const state = this.state();
+    const areasToKeep = state.themeAreas.filter((a) => {
+      try {
+        const areaPoly = geo.pointsToPolygon(a.points);
+        const point = geo.pointsToPolygon([
+          [x - 1, y - 1],
+          [x + 1, y - 1],
+          [x + 1, y + 1],
+          [x - 1, y + 1],
+          [x - 1, y - 1],
+        ]);
+        return !geo.intersects(areaPoly, point);
+      } catch (e) {
+        return true;
+      }
+    });
+    if (areasToKeep.length !== state.themeAreas.length) {
+      const newState = state.clone();
+      newState.themeAreas = areasToKeep;
+      await this.pushState(newState);
+    }
+  }
+
+  async paintRoomAtPoint(x, y) {
+    const state = this.state();
+    if (!state.geometry) return;
+
+    const room = geo.findRoomAtPoint(
+      state.geometry,
+      state.interiorWalls,
+      state.interiorWallShapes || [],
+      state.config.wallThickness,
+      x,
+      y
+    );
+    if (!room) return;
+
+    const coords = room.getExteriorRing().getCoordinates();
+    const points = coords.map((c) => [c.x, c.y]);
+
+    const themeKey = getThemePainterThemeKey();
+    const theme = getTheme(themeKey);
+
+    const newArea = {
+      points,
+      config: theme.config,
+    };
+    const newState = state.clone();
+    newState.themeAreas.push(newArea);
+    await this.pushState(newState);
+  }
+
   // { x1, y1, x2, y2, x3, y3, x4, y4 }
   async addStairs(stairData) {
     const newState = this.history[this.historyIndex].clone();

@@ -147,6 +147,12 @@ export class DungeonDrawToolbar extends Application {
           icon: "fas fa-brush",
           isActive: game.activeDungeonDrawTool === "themepainter",
         },
+        {
+          name: "roompainter",
+          title: "DD.ButtonTitleRoomPainter",
+          icon: "fas fa-fill-drip",
+          isActive: game.activeDungeonDrawTool === "roompainter",
+        },
       ],
       themeKeys,
       themeOptions,

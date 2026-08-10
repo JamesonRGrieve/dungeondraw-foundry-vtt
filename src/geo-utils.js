@@ -308,6 +308,92 @@ export const smoothPoly = (poly) => {
 };
 
 /**
+ * Split dungeon geometry into individual room polygons using interior walls.
+ * Buffers each interior wall into a thin cutting polygon and subtracts it
+ * from the main geometry, yielding a MultiPolygon whose components are rooms.
+ *
+ * @param {Geometry} geometry - The main dungeon geometry (Polygon or MultiPolygon)
+ * @param {Array} interiorWalls - Array of [x1, y1, x2, y2] wall segments
+ * @param {Array} interiorWallShapes - Array of [[x,y],...] wall shape point arrays
+ * @param {number} wallThickness - Wall thickness from config (used for cut width)
+ * @returns {Geometry[]} Array of individual room Polygon geometries
+ */
+export const splitIntoRooms = (
+  geometry,
+  interiorWalls,
+  interiorWallShapes,
+  wallThickness
+) => {
+  if (!geometry) return [];
+
+  let remaining = geometry;
+  const cutWidth = (wallThickness || 8) / 2.0 + 1;
+
+  for (const wall of interiorWalls) {
+    const wallLine = twoPointsToLineString(wall[0], wall[1], wall[2], wall[3]);
+    const wallPoly = BufferOp.bufferOp(wallLine, cutWidth);
+    try {
+      remaining = OverlayOp.difference(remaining, wallPoly);
+    } catch (e) {
+      // topology exception on degenerate geometry — skip this wall
+    }
+  }
+
+  for (const shape of interiorWallShapes || []) {
+    try {
+      const shapePoly = pointsToPolygon(shape);
+      const buffered = BufferOp.bufferOp(shapePoly, cutWidth);
+      remaining = OverlayOp.difference(remaining, buffered);
+    } catch (e) {
+      // skip invalid shapes
+    }
+  }
+
+  const rooms = [];
+  for (let i = 0; i < remaining.getNumGeometries(); i++) {
+    const room = remaining.getGeometryN(i);
+    if (room.getArea() > 100) {
+      rooms.push(room);
+    }
+  }
+  return rooms;
+};
+
+/**
+ * Find the room polygon that contains a given point.
+ *
+ * @param {Geometry} geometry - The main dungeon geometry
+ * @param {Array} interiorWalls - Interior wall segments
+ * @param {Array} interiorWallShapes - Interior wall shape point arrays
+ * @param {number} wallThickness - Wall thickness from config
+ * @param {number} x - Click x coordinate
+ * @param {number} y - Click y coordinate
+ * @returns {Geometry|null} The room polygon containing the point, or null
+ */
+export const findRoomAtPoint = (
+  geometry,
+  interiorWalls,
+  interiorWallShapes,
+  wallThickness,
+  x,
+  y
+) => {
+  const rooms = splitIntoRooms(
+    geometry,
+    interiorWalls,
+    interiorWallShapes,
+    wallThickness
+  );
+  const point = new GeometryFactory().createPoint(new Coordinate(x, y));
+  for (const room of rooms) {
+    if (room.contains(point)) {
+      return room;
+    }
+  }
+  return null;
+};
+
+/**
  * Split the wall if it's drawn over an existing door.
  *
  * @returns [[x1, y1, x2, y2], ...]
