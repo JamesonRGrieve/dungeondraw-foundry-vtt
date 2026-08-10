@@ -290,11 +290,16 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
           break;
         }
         case "surfacepainter": {
+          const surfActualMode =
+            game.dungeonDrawShapes?.surfacepainter || "polygon";
           const snapActiveSurf =
             Settings.snapToGrid() && game.dungeonDrawSnapActive;
-          const surfShapeMode = snapActiveSurf
-            ? "square"
-            : game.dungeonDrawShapes?.surfacepainter || "polygon";
+          const surfShapeMode =
+            surfActualMode === "brush"
+              ? "brush"
+              : snapActiveSurf
+              ? "square"
+              : surfActualMode;
           if (surfShapeMode === "square") {
             data.shape.type =
               foundry.canvas.placeables.Drawing.SHAPE_TYPES.RECTANGLE;
