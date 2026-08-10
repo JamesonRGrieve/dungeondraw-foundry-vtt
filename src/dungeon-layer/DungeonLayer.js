@@ -1,6 +1,7 @@
 import { Dungeon } from "../dungeon.js";
 import { regenerate } from "../generator.js";
 import * as geo from "../geo-utils.js";
+import { getSurfacePainterType, surfaceTypes } from "../themes.js";
 import { GridPainterHelper } from "../GridPainterHelper.js";
 import { Settings } from "../settings.js";
 import { SNAP_MODES } from "../constants.js";
@@ -77,6 +78,33 @@ function onBrushMouseDraw(preview, event) {
     x: destination.x,
     y: destination.y,
   });
+
+  const path = preview.document.flags.brushPath;
+  if (path.length < 2) return;
+
+  const brushRadius = game.dungeonDrawBrushRadius || 30;
+  const typeDef = surfaceTypes[getSurfacePainterType()] || surfaceTypes.water;
+  const color = PIXI.utils.string2hex(typeDef.color);
+  const opacity = typeDef.opacity ?? 0.7;
+
+  if (!preview._brushGfx) {
+    preview._brushGfx = new PIXI.Graphics();
+    canvas.dungeon.addChild(preview._brushGfx);
+  }
+
+  const gfx = preview._brushGfx;
+  gfx.clear();
+  gfx.lineStyle({
+    width: brushRadius * 2,
+    color,
+    alpha: opacity,
+    join: "round",
+    cap: "round",
+  });
+  gfx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length; i++) {
+    gfx.lineTo(path[i].x, path[i].y);
+  }
 }
 
 function onFreeHandMouseDraw(preview, event) {
@@ -569,8 +597,13 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
 
   /** @override */
   async _onDragLeftCancel(event) {
-    // Clean up gridpainter/theme painter preview drawings on cancel
+    // Clean up brush preview graphics
     const preview = event.interactionData?.preview;
+    if (preview?._brushGfx) {
+      preview._brushGfx.destroy();
+      preview._brushGfx = null;
+    }
+    // Clean up gridpainter/theme painter preview drawings on cancel
     if (
       (isGridPainter() || isThemePainterGrid() || isSurfacePainterGrid()) &&
       preview?.document?.flags?.gridPainterHelper?.gridDrawings?.length
