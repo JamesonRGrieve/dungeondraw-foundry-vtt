@@ -261,10 +261,10 @@ export async function handleThemePainterCompletion(ctx) {
  * @returns {boolean} True if handled
  */
 export async function handleSurfacePainterCompletion(ctx) {
+  const actualMode = game.dungeonDrawShapes?.surfacepainter || "polygon";
   const snapActive = Settings.snapToGrid() && game.dungeonDrawSnapActive;
-  const shapeMode = snapActive
-    ? "square"
-    : game.dungeonDrawShapes?.surfacepainter || "polygon";
+  const shapeMode =
+    actualMode === "brush" ? "brush" : snapActive ? "square" : actualMode;
 
   if (shapeMode === "brush") {
     ctx.event.interactionData.drawingsState = 0;
