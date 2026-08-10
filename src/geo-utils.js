@@ -401,7 +401,7 @@ export const findRoomAtPoint = (
   );
   const point = new GeometryFactory().createPoint(new Coordinate(x, y));
   for (const room of rooms) {
-    if (room.contains(point)) {
+    if (RelateOp.contains(room, point)) {
       return { room, id: roomId(room) };
     }
   }
@@ -410,11 +410,19 @@ export const findRoomAtPoint = (
 
 /**
  * Generate a stable ID for a room polygon based on its centroid.
- * Rounds to integer coords so minor floating-point drift doesn't change the ID.
+ * Computes centroid from coordinate average (avoids JSTS monkey-patch issues).
  */
 export const roomId = (roomGeometry) => {
-  const centroid = roomGeometry.getCentroid();
-  return `room_${Math.round(centroid.getX())}_${Math.round(centroid.getY())}`;
+  const coords = roomGeometry.getCoordinates();
+  let cx = 0,
+    cy = 0;
+  for (const c of coords) {
+    cx += c.x;
+    cy += c.y;
+  }
+  cx /= coords.length;
+  cy /= coords.length;
+  return `room_${Math.round(cx)}_${Math.round(cy)}`;
 };
 
 /**
