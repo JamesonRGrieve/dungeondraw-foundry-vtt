@@ -19,7 +19,8 @@ export class DungeonState {
     stairs,
     windows,
     config,
-    rooms
+    rooms,
+    surfaces
   ) {
     this.geometry = geometry;
     this.themeAreas = themeAreas;
@@ -32,8 +33,8 @@ export class DungeonState {
     this.stairs = stairs;
     this.windows = windows;
     this.config = config;
-    // Per-room theme registry: { roomId: { config, matchBaseWalls } }
     this.rooms = rooms || {};
+    this.surfaces = surfaces || [];
   }
 
   static startState() {
@@ -49,7 +50,8 @@ export class DungeonState {
       [],
       [],
       defaultConfig(),
-      {}
+      {},
+      []
     );
   }
 
@@ -74,7 +76,8 @@ export class DungeonState {
       this.stairs ? JSON.parse(JSON.stringify(this.stairs)) : [],
       this.windows ? [...this.windows] : [],
       JSON.parse(JSON.stringify(this.config)),
-      this.rooms ? JSON.parse(JSON.stringify(this.rooms)) : {}
+      this.rooms ? JSON.parse(JSON.stringify(this.rooms)) : {},
+      this.surfaces ? JSON.parse(JSON.stringify(this.surfaces)) : []
     );
   }
 
@@ -95,6 +98,7 @@ export class DungeonState {
       windows: this.windows,
       config: this.config,
       rooms: this.rooms,
+      surfaces: this.surfaces,
     });
   }
 
@@ -119,6 +123,7 @@ export class DungeonState {
     const stairs = obj.stairs ? obj.stairs : [];
     const windows = obj.windows ? obj.windows : [];
     const rooms = obj.rooms ? obj.rooms : {};
+    const surfaces = obj.surfaces ? obj.surfaces : [];
     // fill in any new defaults
     const config = foundry.utils.mergeObject(defaultConfig(), obj.config);
     return new DungeonState(
@@ -133,7 +138,8 @@ export class DungeonState {
       stairs,
       windows,
       config,
-      rooms
+      rooms,
+      surfaces
     );
   }
 

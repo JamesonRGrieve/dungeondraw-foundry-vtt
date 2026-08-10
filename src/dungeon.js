@@ -1,7 +1,13 @@
 import { DungeonState } from "./dungeonstate.js";
 import { render } from "./renderer.js";
 import * as geo from "./geo-utils.js";
-import { getTheme, getThemePainterThemeKey } from "./themes.js";
+import {
+  getTheme,
+  getThemePainterThemeKey,
+  getSurfacePainterType,
+  getSurfacePainterPlacement,
+  surfaceTypes,
+} from "./themes.js";
 import * as constants from "./constants.js";
 
 /**
@@ -819,7 +825,6 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
       [x - 1, y - 1],
     ]);
 
-    // Check room registry first
     const hit = geo.findRoomAtPoint(
       state.geometry,
       state.interiorWalls,
@@ -835,7 +840,6 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
       return;
     }
 
-    // Fall back to legacy themeAreas
     const areasToKeep = state.themeAreas.filter((a) => {
       try {
         const areaPoly = geo.pointsToPolygon(a.points);
@@ -881,6 +885,65 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
     const newState = state.clone();
     newState.rooms = {};
     await this.pushState(newState);
+  }
+
+  async addSurface(points) {
+    const poly = geo.pointsToPolygon(points);
+    if (!geo.isValid(poly)) {
+      ui.notifications.error(game.i18n.localize("DD.ErrorInvalidShape"));
+      return;
+    }
+    const surfaceType = getSurfacePainterType();
+    const placement = getSurfacePainterPlacement();
+    const typeDef = surfaceTypes[surfaceType] || surfaceTypes.water;
+    const newState = this.history[this.historyIndex].clone();
+    newState.surfaces.push({
+      points,
+      surfaceType,
+      placement,
+      color: typeDef.color,
+      opacity: typeDef.opacity,
+      isLiquid: typeDef.isLiquid,
+      texture: typeDef.texture || "",
+    });
+    await this.pushState(newState);
+  }
+
+  async addSurfaceFromGeometry(geometry) {
+    if (!geo.isValid(geometry)) {
+      ui.notifications.error(game.i18n.localize("DD.ErrorInvalidShape"));
+      return;
+    }
+    let exteriorRing;
+    if (geometry.getExteriorRing) {
+      exteriorRing = geometry.getExteriorRing();
+    } else if (geometry.getNumGeometries && geometry.getNumGeometries() > 0) {
+      exteriorRing = geometry.getGeometryN(0)?.getExteriorRing?.();
+    }
+    if (!exteriorRing) {
+      ui.notifications.error(game.i18n.localize("DD.ErrorInvalidShape"));
+      return;
+    }
+    const points = exteriorRing.getCoordinates().map((c) => [c.x, c.y]);
+    await this.addSurface(points);
+  }
+
+  async removeSurfaces(rect) {
+    const rectPoly = geo.rectToPolygon(rect);
+    const oldState = this.history[this.historyIndex];
+    const toKeep = oldState.surfaces.filter((s) => {
+      try {
+        const surfPoly = geo.pointsToPolygon(s.points);
+        return !geo.intersects(rectPoly, surfPoly);
+      } catch (e) {
+        return false;
+      }
+    });
+    if (toKeep.length !== oldState.surfaces.length) {
+      const newState = oldState.clone();
+      newState.surfaces = toKeep;
+      await this.pushState(newState);
+    }
   }
 
   // { x1, y1, x2, y2, x3, y3, x4, y4 }

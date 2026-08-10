@@ -97,6 +97,97 @@ export const getThemePainterThemeKey = () => {
   );
 };
 
+export const getSurfacePainterType = () => {
+  return game.dungeonDrawSurfaceType || "water";
+};
+
+export const setSurfacePainterType = (surfaceType) => {
+  game.dungeonDrawSurfaceType = surfaceType;
+};
+
+export const getSurfacePainterPlacement = () => {
+  return game.dungeonDrawSurfacePlacement || "interior";
+};
+
+export const setSurfacePainterPlacement = (placement) => {
+  game.dungeonDrawSurfacePlacement = placement;
+};
+
+export const surfaceTypes = {
+  water: {
+    name: "Water",
+    color: "#2a4a6b",
+    opacity: 0.7,
+    isLiquid: true,
+  },
+  deepWater: {
+    name: "Deep Water",
+    color: "#0d2847",
+    opacity: 0.85,
+    isLiquid: true,
+  },
+  lava: {
+    name: "Lava",
+    color: "#cc3300",
+    opacity: 0.9,
+    isLiquid: true,
+  },
+  oil: {
+    name: "Oil",
+    color: "#1a1a2e",
+    opacity: 0.75,
+    isLiquid: true,
+  },
+  acid: {
+    name: "Acid",
+    color: "#4a7a2e",
+    opacity: 0.7,
+    isLiquid: true,
+  },
+  sewage: {
+    name: "Sewage",
+    color: "#3d3520",
+    opacity: 0.8,
+    isLiquid: true,
+  },
+  grass: {
+    name: "Grass",
+    color: "#2d5a1e",
+    opacity: 1.0,
+    isLiquid: false,
+  },
+  dirt: {
+    name: "Dirt",
+    color: "#5a4a35",
+    opacity: 1.0,
+    isLiquid: false,
+  },
+  sand: {
+    name: "Sand",
+    color: "#c2a866",
+    opacity: 1.0,
+    isLiquid: false,
+  },
+  rock: {
+    name: "Rock",
+    color: "#4a4a4a",
+    opacity: 1.0,
+    isLiquid: false,
+  },
+  void: {
+    name: "Void / Sky",
+    color: "#0a0a15",
+    opacity: 1.0,
+    isLiquid: false,
+  },
+  rust: {
+    name: "Rust / Decay",
+    color: "#6b3a1a",
+    opacity: 0.8,
+    isLiquid: false,
+  },
+};
+
 export const setThemePainterThemeKey = (themeKey) => {
   return game.settings.set(
     constants.MODULE_NAME,

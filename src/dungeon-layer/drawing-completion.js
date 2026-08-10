@@ -256,6 +256,61 @@ export async function handleThemePainterCompletion(ctx) {
 }
 
 /**
+ * Handle surface painter drawing completion (square/ellipse/grid/polygon modes).
+ * @param {CompletionContext} ctx
+ * @returns {boolean} True if handled
+ */
+export async function handleSurfacePainterCompletion(ctx) {
+  const snapActive = Settings.snapToGrid() && game.dungeonDrawSnapActive;
+  const shapeMode = snapActive
+    ? "square"
+    : game.dungeonDrawShapes?.surfacepainter || "polygon";
+
+  if (shapeMode === "square" || shapeMode === "ellipse") {
+    ctx.event.interactionData.drawingsState = 0;
+    ctx.preview._chain = false;
+    const rect = ctx.layer._maybeSnappedRect(ctx.data, ctx.event.shiftKey);
+    if (shapeMode === "square") {
+      const offsetPoints = rectangleToPolygonPoints(
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height
+      );
+      await ctx.dungeon.addSurface(offsetPoints);
+    } else {
+      const offsetPoints = ellipseToPolygonPoints(
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height
+      );
+      await ctx.dungeon.addSurface(offsetPoints);
+    }
+    return true;
+  } else if (shapeMode === "grid") {
+    ctx.event.interactionData.drawingsState = 0;
+    ctx.preview._chain = false;
+    await ctx.dungeon.addSurfaceFromGeometry(
+      ctx.preview.document.flags.gridPainterHelper.paintedGeometry
+    );
+    return true;
+  } else if (ctx.minDistance || ctx.completePolygon) {
+    ctx.event.interactionData.drawingsState = 0;
+    ctx.preview._chain = false;
+    const createData = ctx.layer.constructor.placeableClass.normalizeShape(
+      ctx.data
+    );
+    ctx.layer._maybeSnapLastPoint(createData, ctx.event.shiftKey);
+    ctx.layer._autoClosePolygon(createData);
+    const offsetPoints = createDataOffsetPoints(createData);
+    await ctx.dungeon.addSurface(offsetPoints);
+    return true;
+  }
+  return false;
+}
+
+/**
  * Handle room drawing completion (rectangle/ellipse/polygon/freehand/gridpainter).
  * @param {CompletionContext} ctx
  * @param {string} opcode - The operation code (e.g., "addrectangle")
@@ -348,6 +403,9 @@ export async function handleRemoveCompletion(ctx, opcode) {
   } else if (opcode === "removethemepainter") {
     const rect = ctx.layer._maybeSnappedRect(createData, ctx.event.shiftKey);
     await ctx.dungeon.removeThemeAreas(rect);
+  } else if (opcode === "removesurfacepainter") {
+    const rect = ctx.layer._maybeSnappedRect(createData, ctx.event.shiftKey);
+    await ctx.dungeon.removeSurfaces(rect);
   } else if (opcode === "removestairs") {
     const rect = ctx.layer._maybeSnappedRect(createData, ctx.event.shiftKey);
     await ctx.dungeon.removeStairs(rect);
