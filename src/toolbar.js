@@ -278,7 +278,7 @@ export class DungeonDrawToolbar extends Application {
       interiorwall: ["line", "square", "ellipse", "polygon"],
       invisiblewall: ["line", "square", "ellipse", "polygon"],
       themepainter: ["square", "ellipse", "polygon", "grid"],
-      surfacepainter: ["square", "ellipse", "polygon", "grid"],
+      surfacepainter: ["brush", "square", "ellipse", "polygon", "grid"],
     };
 
     const modes = toolModes[tool] || [];
@@ -369,6 +369,7 @@ export class DungeonDrawToolbar extends Application {
   /** Get FontAwesome icon for a shape mode */
   _getShapeIcon(mode) {
     const icons = {
+      brush: '<i class="fas fa-paint-brush"></i>',
       line: '<i class="fas fa-minus"></i>',
       square: '<i class="fas fa-square"></i>',
       ellipse: '<i class="fas fa-circle"></i>',

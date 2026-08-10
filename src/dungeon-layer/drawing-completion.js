@@ -266,7 +266,18 @@ export async function handleSurfacePainterCompletion(ctx) {
     ? "square"
     : game.dungeonDrawShapes?.surfacepainter || "polygon";
 
-  if (shapeMode === "square" || shapeMode === "ellipse") {
+  if (shapeMode === "brush") {
+    ctx.event.interactionData.drawingsState = 0;
+    ctx.preview._chain = false;
+    const brushPath = ctx.preview.document.flags.brushPath;
+    const brushRadius = game.dungeonDrawBrushRadius || 30;
+    if (game.activeDungeonDrawMode === "remove") {
+      await ctx.dungeon.eraseBrushedSurface(brushPath, brushRadius);
+    } else {
+      await ctx.dungeon.addBrushedSurface(brushPath, brushRadius);
+    }
+    return true;
+  } else if (shapeMode === "square" || shapeMode === "ellipse") {
     ctx.event.interactionData.drawingsState = 0;
     ctx.preview._chain = false;
     const rect = ctx.layer._maybeSnappedRect(ctx.data, ctx.event.shiftKey);
