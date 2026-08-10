@@ -257,85 +257,99 @@ const renderPass = async (container, state) => {
 const drawSurfaces = async (container, state, placement) => {
   if (!state.surfaces || state.surfaces.length === 0) return;
 
+  // Group surfaces by type so same-type overlaps don't compound alpha
+  const groups = {};
   for (const surface of state.surfaces) {
     if (surface.placement !== placement) continue;
+    const key = surface.surfaceType || "default";
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(surface);
+  }
+
+  for (const [, surfaces] of Object.entries(groups)) {
+    const first = surfaces[0];
+    const color = PIXI.utils.string2hex(first.color || "#2a4a6b");
+    const opacity = first.opacity ?? 0.7;
+
+    // One container per type with alpha applied once — no overlap compounding
+    const typeContainer = new PIXI.Container();
+    const alphaFilter = new PIXI.AlphaFilter(opacity);
+    typeContainer.filters = [alphaFilter];
 
     const surfGfx = new PIXI.Graphics();
-    const color = PIXI.utils.string2hex(surface.color || "#2a4a6b");
-    const opacity = surface.opacity ?? 0.7;
 
-    let drawPoints;
-    if (placement === "interior" && state.geometry) {
-      // Clip to dungeon interior
-      try {
-        const surfPoly = geo.pointsToPolygon(surface.points);
-        const clipped = geo.intersection(state.geometry, surfPoly);
-        if (!clipped || clipped.isEmpty()) continue;
-        const coords = [];
-        for (let i = 0; i < clipped.getNumGeometries(); i++) {
-          const ring = clipped.getGeometryN(i).getExteriorRing();
-          coords.push(
-            ring
-              .getCoordinates()
-              .map((c) => [c.x, c.y])
-              .flat()
-          );
+    for (const surface of surfaces) {
+      let drawPoints;
+      if (placement === "interior" && state.geometry) {
+        try {
+          const surfPoly = geo.pointsToPolygon(surface.points);
+          const clipped = geo.intersection(state.geometry, surfPoly);
+          if (!clipped || clipped.isEmpty()) continue;
+          const coords = [];
+          for (let i = 0; i < clipped.getNumGeometries(); i++) {
+            const ring = clipped.getGeometryN(i).getExteriorRing();
+            coords.push(
+              ring
+                .getCoordinates()
+                .map((c) => [c.x, c.y])
+                .flat()
+            );
+          }
+          drawPoints = coords;
+        } catch (e) {
+          drawPoints = [surface.points.flat()];
         }
-        drawPoints = coords;
-      } catch (e) {
+      } else if (placement === "background" && state.geometry) {
+        try {
+          const surfPoly = geo.pointsToPolygon(surface.points);
+          const clipped = geo.difference(surfPoly, state.geometry);
+          if (!clipped || clipped.isEmpty()) continue;
+          const coords = [];
+          for (let i = 0; i < clipped.getNumGeometries(); i++) {
+            const ring = clipped.getGeometryN(i).getExteriorRing();
+            coords.push(
+              ring
+                .getCoordinates()
+                .map((c) => [c.x, c.y])
+                .flat()
+            );
+          }
+          drawPoints = coords;
+        } catch (e) {
+          drawPoints = [surface.points.flat()];
+        }
+      } else {
         drawPoints = [surface.points.flat()];
       }
-    } else if (placement === "background" && state.geometry) {
-      // Clip to outside dungeon geometry
-      try {
-        const surfPoly = geo.pointsToPolygon(surface.points);
-        const clipped = geo.difference(surfPoly, state.geometry);
-        if (!clipped || clipped.isEmpty()) continue;
-        const coords = [];
-        for (let i = 0; i < clipped.getNumGeometries(); i++) {
-          const ring = clipped.getGeometryN(i).getExteriorRing();
-          coords.push(
-            ring
-              .getCoordinates()
-              .map((c) => [c.x, c.y])
-              .flat()
-          );
-        }
-        drawPoints = coords;
-      } catch (e) {
-        drawPoints = [surface.points.flat()];
-      }
-    } else {
-      drawPoints = [surface.points.flat()];
-    }
 
-    if (surface.texture) {
-      try {
-        const texture = await getTexture(surface.texture);
-        if (texture?.valid) {
+      if (surface.texture) {
+        try {
+          const texture = await getTexture(surface.texture);
+          if (texture?.valid) {
+            for (const pts of drawPoints) {
+              surfGfx.beginTextureFill({ texture, alpha: 1.0 });
+              surfGfx.drawPolygon(pts);
+              surfGfx.endFill();
+            }
+          }
+        } catch (e) {
           for (const pts of drawPoints) {
-            surfGfx.beginTextureFill({ texture, alpha: opacity });
+            surfGfx.beginFill(color, 1.0);
             surfGfx.drawPolygon(pts);
             surfGfx.endFill();
           }
         }
-      } catch (e) {
-        // fall back to color fill
+      } else {
         for (const pts of drawPoints) {
-          surfGfx.beginFill(color, opacity);
+          surfGfx.beginFill(color, 1.0);
           surfGfx.drawPolygon(pts);
           surfGfx.endFill();
         }
       }
-    } else {
-      for (const pts of drawPoints) {
-        surfGfx.beginFill(color, opacity);
-        surfGfx.drawPolygon(pts);
-        surfGfx.endFill();
-      }
     }
 
-    container.addChild(surfGfx);
+    typeContainer.addChild(surfGfx);
+    container.addChild(typeContainer);
   }
 };
 

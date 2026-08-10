@@ -932,17 +932,35 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
 
   async addBrushedSurface(pathPoints, brushRadius) {
     if (!pathPoints || pathPoints.length < 2) return;
-    const coords = pathPoints.map((p) => new geo.Coordinate(p.x, p.y));
-    const line = new geo.GeometryFactory().createLineString(coords);
-    const brushPoly = geo.expandGeometry(line, brushRadius);
-    if (!brushPoly || brushPoly.isEmpty()) return;
+    // Deduplicate consecutive identical points
+    const deduped = [pathPoints[0]];
+    for (let i = 1; i < pathPoints.length; i++) {
+      const prev = deduped[deduped.length - 1];
+      if (
+        Math.abs(pathPoints[i].x - prev.x) > 0.5 ||
+        Math.abs(pathPoints[i].y - prev.y) > 0.5
+      ) {
+        deduped.push(pathPoints[i]);
+      }
+    }
+    if (deduped.length < 2) return;
+
+    const coords = deduped.map((p) => new geo.Coordinate(p.x, p.y));
+    const factory = new geo.GeometryFactory();
+    const line = factory.createLineString(coords);
+    let brushPoly;
+    try {
+      brushPoly = geo.expandGeometry(line, brushRadius);
+    } catch (e) {
+      return;
+    }
+    if (!brushPoly || brushPoly.isEmpty() || !geo.isValid(brushPoly)) return;
 
     const surfaceType = getSurfacePainterType();
     const placement = getSurfacePainterPlacement();
     const typeDef = surfaceTypes[surfaceType] || surfaceTypes.water;
     const newState = this.history[this.historyIndex].clone();
 
-    // Merge with existing surfaces of the same type + placement
     let merged = brushPoly;
     const kept = [];
     for (const s of newState.surfaces) {
@@ -960,10 +978,15 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
       kept.push(s);
     }
 
-    const mergedCoords = merged
-      .getExteriorRing()
-      .getCoordinates()
-      .map((c) => [c.x, c.y]);
+    // Extract exterior ring from potentially complex merged geometry
+    let ring;
+    if (merged.getNumGeometries && merged.getNumGeometries() > 0) {
+      ring = merged.getGeometryN(0).getExteriorRing();
+    } else if (merged.getExteriorRing) {
+      ring = merged.getExteriorRing();
+    }
+    if (!ring) return;
+    const mergedCoords = ring.getCoordinates().map((c) => [c.x, c.y]);
     kept.push({
       points: mergedCoords,
       surfaceType,
