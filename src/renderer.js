@@ -257,153 +257,126 @@ const renderPass = async (container, state) => {
 const drawSurfaces = async (container, state, placement) => {
   if (!state.surfaces || state.surfaces.length === 0) return;
 
-  // Group surfaces by type so same-type overlaps don't compound alpha
-  const groups = {};
   for (const surface of state.surfaces) {
     if (surface.placement !== placement) continue;
-    const key = surface.surfaceType || "default";
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(surface);
-  }
-
-  for (const [, surfaces] of Object.entries(groups)) {
-    const first = surfaces[0];
-    const color = PIXI.utils.string2hex(first.color || "#2a4a6b");
-    const opacity = first.opacity ?? 0.7;
-
-    // One container per type with alpha applied once — no overlap compounding
-    const typeContainer = new PIXI.Container();
-    const alphaFilter = new PIXI.AlphaFilter(opacity);
-    typeContainer.filters = [alphaFilter];
 
     const surfGfx = new PIXI.Graphics();
+    const color = PIXI.utils.string2hex(surface.color || "#2a4a6b");
+    const opacity = surface.opacity ?? 0.7;
 
-    for (const surface of surfaces) {
-      let drawPoints;
-      if (placement === "interior" && state.geometry) {
-        try {
-          const surfPoly = geo.pointsToPolygon(surface.points);
-          const clipped = geo.intersection(state.geometry, surfPoly);
-          if (!clipped || clipped.isEmpty()) continue;
-          const coords = [];
-          for (let i = 0; i < clipped.getNumGeometries(); i++) {
-            const ring = clipped.getGeometryN(i).getExteriorRing();
-            coords.push(
-              ring
-                .getCoordinates()
-                .map((c) => [c.x, c.y])
-                .flat()
-            );
-          }
-          drawPoints = coords;
-        } catch (e) {
-          drawPoints = [surface.points.flat()];
+    let drawPoints;
+    if (placement === "interior" && state.geometry) {
+      // Clip to dungeon interior
+      try {
+        const surfPoly = geo.pointsToPolygon(surface.points);
+        const clipped = geo.intersection(state.geometry, surfPoly);
+        if (!clipped || clipped.isEmpty()) continue;
+        const coords = [];
+        for (let i = 0; i < clipped.getNumGeometries(); i++) {
+          const ring = clipped.getGeometryN(i).getExteriorRing();
+          coords.push(
+            ring
+              .getCoordinates()
+              .map((c) => [c.x, c.y])
+              .flat()
+          );
         }
-      } else if (placement === "background" && state.geometry) {
-        try {
-          const surfPoly = geo.pointsToPolygon(surface.points);
-          const clipped = geo.difference(surfPoly, state.geometry);
-          if (!clipped || clipped.isEmpty()) continue;
-          const coords = [];
-          for (let i = 0; i < clipped.getNumGeometries(); i++) {
-            const ring = clipped.getGeometryN(i).getExteriorRing();
-            coords.push(
-              ring
-                .getCoordinates()
-                .map((c) => [c.x, c.y])
-                .flat()
-            );
-          }
-          drawPoints = coords;
-        } catch (e) {
-          drawPoints = [surface.points.flat()];
-        }
-      } else {
+        drawPoints = coords;
+      } catch (e) {
         drawPoints = [surface.points.flat()];
       }
+    } else if (placement === "background" && state.geometry) {
+      // Clip to outside dungeon geometry
+      try {
+        const surfPoly = geo.pointsToPolygon(surface.points);
+        const clipped = geo.difference(surfPoly, state.geometry);
+        if (!clipped || clipped.isEmpty()) continue;
+        const coords = [];
+        for (let i = 0; i < clipped.getNumGeometries(); i++) {
+          const ring = clipped.getGeometryN(i).getExteriorRing();
+          coords.push(
+            ring
+              .getCoordinates()
+              .map((c) => [c.x, c.y])
+              .flat()
+          );
+        }
+        drawPoints = coords;
+      } catch (e) {
+        drawPoints = [surface.points.flat()];
+      }
+    } else {
+      drawPoints = [surface.points.flat()];
+    }
 
-      if (surface.texture) {
-        try {
-          const texture = await getTexture(surface.texture);
-          if (texture?.valid) {
-            for (const pts of drawPoints) {
-              surfGfx.beginTextureFill({ texture, alpha: 1.0 });
-              surfGfx.drawPolygon(pts);
-              surfGfx.endFill();
-            }
-          }
-        } catch (e) {
+    // Draw fills at full opacity; set alpha on the Graphics object so
+    // overlapping regions of the same surface don't compound transparency
+    surfGfx.alpha = opacity;
+
+    if (surface.texture) {
+      try {
+        const texture = await getTexture(surface.texture);
+        if (texture?.valid) {
           for (const pts of drawPoints) {
-            surfGfx.beginFill(color, 1.0);
+            surfGfx.beginTextureFill({ texture, alpha: 1.0 });
             surfGfx.drawPolygon(pts);
             surfGfx.endFill();
           }
         }
-      } else {
+      } catch (e) {
         for (const pts of drawPoints) {
           surfGfx.beginFill(color, 1.0);
           surfGfx.drawPolygon(pts);
           surfGfx.endFill();
         }
       }
+    } else {
+      for (const pts of drawPoints) {
+        surfGfx.beginFill(color, 1.0);
+        surfGfx.drawPolygon(pts);
+        surfGfx.endFill();
+      }
     }
 
-    typeContainer.addChild(surfGfx);
-    container.addChild(typeContainer);
+    container.addChild(surfGfx);
   }
 };
 
 const drawThemeAreas = async (container, state) => {
-  // Draw room-registry rooms as theme areas
-  if (state.geometry && state.rooms && Object.keys(state.rooms).length > 0) {
-    const detectedRooms = geo.getAllRooms(
-      state.geometry,
-      state.interiorWalls,
-      state.interiorWallShapes || [],
-      state.config.wallThickness,
-      state.doors
-    );
-    for (const { id, points } of detectedRooms) {
-      const roomEntry = state.rooms[id];
-      if (!roomEntry) continue;
-      const area = { points, config: roomEntry.config };
-      await drawSingleThemeArea(container, state, area);
-    }
-  }
-
-  // Draw legacy hand-painted theme areas
   for (const area of state.themeAreas) {
-    await drawSingleThemeArea(container, state, area);
+    // hacky way to pass down the actual theme to paint
+    const areaState = state.clone();
+    areaState.config = area.config;
+    // For now, just keep certain values from the main state config,
+    // so the dungeon doors etc look consistent at meet up areas
+    areaState.config.doorColor = state.config.doorColor;
+    areaState.config.doorFillColor = state.config.doorFillColor;
+    areaState.config.doorFillOpacity = state.config.doorFillOpacity;
+    areaState.config.doorThickness = state.config.doorThickness;
+    if (areaState.config.matchBaseWalls) {
+      areaState.config.wallColor = state.config.wallColor;
+      areaState.config.wallTexture = state.config.wallTexture;
+      areaState.config.wallTextureTint = state.config.wallTextureTint;
+      areaState.config.wallThickness = state.config.wallThickness;
+    }
+    areaState.config.exteriorShadowOpacity = 0.0; // don't draw additional exterior shadows
+
+    // mask for our area shape
+    const areaContainer = new PIXI.Container();
+    const areaMask = new PIXI.Graphics();
+    areaMask.beginFill(0xffffff, 1.0);
+    areaMask.drawPolygon(area.points.flat());
+    areaMask.endFill();
+    areaContainer.mask = areaMask;
+
+    // render the theme, clipping to our rectangle
+    const clipPoly = geo.pointsToPolygon(area.points);
+    await renderPass(areaContainer, areaState, { clipPoly });
+
+    // TODO: verify mask add
+    container.addChild(areaMask);
+    container.addChild(areaContainer);
   }
-};
-
-const drawSingleThemeArea = async (container, state, area) => {
-  const areaState = state.clone();
-  areaState.config = area.config;
-  areaState.config.doorColor = state.config.doorColor;
-  areaState.config.doorFillColor = state.config.doorFillColor;
-  areaState.config.doorFillOpacity = state.config.doorFillOpacity;
-  areaState.config.doorThickness = state.config.doorThickness;
-  if (areaState.config.matchBaseWalls) {
-    areaState.config.wallColor = state.config.wallColor;
-    areaState.config.wallTexture = state.config.wallTexture;
-    areaState.config.wallTextureTint = state.config.wallTextureTint;
-    areaState.config.wallThickness = state.config.wallThickness;
-  }
-  areaState.config.exteriorShadowOpacity = 0.0;
-
-  const areaContainer = new PIXI.Container();
-  const areaMask = new PIXI.Graphics();
-  areaMask.beginFill(0xffffff, 1.0);
-  areaMask.drawPolygon(area.points.flat());
-  areaMask.endFill();
-  areaContainer.mask = areaMask;
-
-  const clipPoly = geo.pointsToPolygon(area.points);
-  await renderPass(areaContainer, areaState, { clipPoly });
-
-  container.addChild(areaMask);
-  container.addChild(areaContainer);
 };
 
 /** Try-catch wrapper around loadTexture. */

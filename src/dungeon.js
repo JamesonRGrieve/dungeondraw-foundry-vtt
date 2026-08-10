@@ -815,80 +815,6 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
     }
   }
 
-  async removeThemeAreaAtPoint(x, y) {
-    const state = this.state();
-    const point = geo.pointsToPolygon([
-      [x - 1, y - 1],
-      [x + 1, y - 1],
-      [x + 1, y + 1],
-      [x - 1, y + 1],
-      [x - 1, y - 1],
-    ]);
-
-    const hit = geo.findRoomAtPoint(
-      state.geometry,
-      state.interiorWalls,
-      state.interiorWallShapes || [],
-      state.config.wallThickness,
-      x,
-      y,
-      state.doors
-    );
-    if (hit && state.rooms[hit.id]) {
-      const newState = state.clone();
-      delete newState.rooms[hit.id];
-      await this.pushState(newState);
-      return;
-    }
-
-    const areasToKeep = state.themeAreas.filter((a) => {
-      try {
-        const areaPoly = geo.pointsToPolygon(a.points);
-        return !geo.intersects(areaPoly, point);
-      } catch (e) {
-        return true;
-      }
-    });
-    if (areasToKeep.length !== state.themeAreas.length) {
-      const newState = state.clone();
-      newState.themeAreas = areasToKeep;
-      await this.pushState(newState);
-    }
-  }
-
-  async paintRoomAtPoint(x, y) {
-    const state = this.state();
-    if (!state.geometry) return;
-
-    const hit = geo.findRoomAtPoint(
-      state.geometry,
-      state.interiorWalls,
-      state.interiorWallShapes || [],
-      state.config.wallThickness,
-      x,
-      y,
-      state.doors
-    );
-    if (!hit) return;
-
-    const themeKey = getThemePainterThemeKey();
-    const theme = getTheme(themeKey);
-
-    const newState = state.clone();
-    newState.rooms[hit.id] = {
-      config: theme.config,
-    };
-    await this.pushState(newState);
-  }
-
-  async clearAllRoomThemes() {
-    const state = this.state();
-    if (Object.keys(state.rooms).length === 0) return;
-    const newState = state.clone();
-    newState.rooms = {};
-    await this.pushState(newState);
-  }
-
   async addSurface(points) {
     const poly = geo.pointsToPolygon(points);
     if (!geo.isValid(poly)) {
@@ -954,7 +880,7 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
     } catch (e) {
       return;
     }
-    if (!brushPoly || brushPoly.isEmpty() || !geo.isValid(brushPoly)) return;
+    if (!brushPoly || brushPoly.isEmpty()) return;
 
     const surfaceType = getSurfacePainterType();
     const placement = getSurfacePainterPlacement();
@@ -978,24 +904,22 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
       kept.push(s);
     }
 
-    // Extract exterior ring from potentially complex merged geometry
-    let ring;
-    if (merged.getNumGeometries && merged.getNumGeometries() > 0) {
-      ring = merged.getGeometryN(0).getExteriorRing();
-    } else if (merged.getExteriorRing) {
-      ring = merged.getExteriorRing();
+    // Extract points — handle both Polygon and MultiPolygon results
+    for (let i = 0; i < merged.getNumGeometries(); i++) {
+      const part = merged.getGeometryN(i);
+      if (part.getArea() < 50) continue;
+      const ring = part.getExteriorRing();
+      if (!ring) continue;
+      kept.push({
+        points: ring.getCoordinates().map((c) => [c.x, c.y]),
+        surfaceType,
+        placement,
+        color: typeDef.color,
+        opacity: typeDef.opacity,
+        isLiquid: typeDef.isLiquid,
+        texture: typeDef.texture || "",
+      });
     }
-    if (!ring) return;
-    const mergedCoords = ring.getCoordinates().map((c) => [c.x, c.y]);
-    kept.push({
-      points: mergedCoords,
-      surfaceType,
-      placement,
-      color: typeDef.color,
-      opacity: typeDef.opacity,
-      isLiquid: typeDef.isLiquid,
-      texture: typeDef.texture || "",
-    });
     newState.surfaces = kept;
     await this.pushState(newState);
   }
