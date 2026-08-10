@@ -674,7 +674,7 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
           themePainterShapeMode === "grid");
       const surfacePainterShapeMode = game.dungeonDrawShapes?.surfacepainter;
       const isNonPolygonSurfacePainter =
-        opcode === "addsurfacepainter" &&
+        game.activeDungeonDrawTool === "surfacepainter" &&
         (surfacePainterShapeMode === "square" ||
           surfacePainterShapeMode === "ellipse" ||
           surfacePainterShapeMode === "grid" ||

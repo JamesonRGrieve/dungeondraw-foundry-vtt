@@ -309,27 +309,30 @@ const drawSurfaces = async (container, state, placement) => {
       drawPoints = [surface.points.flat()];
     }
 
+    // Draw fills at full opacity; set alpha on the Graphics object so
+    // overlapping regions of the same surface don't compound transparency
+    surfGfx.alpha = opacity;
+
     if (surface.texture) {
       try {
         const texture = await getTexture(surface.texture);
         if (texture?.valid) {
           for (const pts of drawPoints) {
-            surfGfx.beginTextureFill({ texture, alpha: opacity });
+            surfGfx.beginTextureFill({ texture, alpha: 1.0 });
             surfGfx.drawPolygon(pts);
             surfGfx.endFill();
           }
         }
       } catch (e) {
-        // fall back to color fill
         for (const pts of drawPoints) {
-          surfGfx.beginFill(color, opacity);
+          surfGfx.beginFill(color, 1.0);
           surfGfx.drawPolygon(pts);
           surfGfx.endFill();
         }
       }
     } else {
       for (const pts of drawPoints) {
-        surfGfx.beginFill(color, opacity);
+        surfGfx.beginFill(color, 1.0);
         surfGfx.drawPolygon(pts);
         surfGfx.endFill();
       }

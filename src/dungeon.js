@@ -858,9 +858,28 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
 
   async addBrushedSurface(pathPoints, brushRadius) {
     if (!pathPoints || pathPoints.length < 2) return;
-    const coords = pathPoints.map((p) => new geo.Coordinate(p.x, p.y));
-    const line = new geo.GeometryFactory().createLineString(coords);
-    const brushPoly = geo.expandGeometry(line, brushRadius);
+    // Deduplicate consecutive identical points
+    const deduped = [pathPoints[0]];
+    for (let i = 1; i < pathPoints.length; i++) {
+      const prev = deduped[deduped.length - 1];
+      if (
+        Math.abs(pathPoints[i].x - prev.x) > 0.5 ||
+        Math.abs(pathPoints[i].y - prev.y) > 0.5
+      ) {
+        deduped.push(pathPoints[i]);
+      }
+    }
+    if (deduped.length < 2) return;
+
+    const coords = deduped.map((p) => new geo.Coordinate(p.x, p.y));
+    const factory = new geo.GeometryFactory();
+    const line = factory.createLineString(coords);
+    let brushPoly;
+    try {
+      brushPoly = geo.expandGeometry(line, brushRadius);
+    } catch (e) {
+      return;
+    }
     if (!brushPoly || brushPoly.isEmpty()) return;
 
     const surfaceType = getSurfacePainterType();
@@ -868,7 +887,6 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
     const typeDef = surfaceTypes[surfaceType] || surfaceTypes.water;
     const newState = this.history[this.historyIndex].clone();
 
-    // Merge with existing surfaces of the same type + placement
     let merged = brushPoly;
     const kept = [];
     for (const s of newState.surfaces) {
@@ -886,19 +904,22 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
       kept.push(s);
     }
 
-    const mergedCoords = merged
-      .getExteriorRing()
-      .getCoordinates()
-      .map((c) => [c.x, c.y]);
-    kept.push({
-      points: mergedCoords,
-      surfaceType,
-      placement,
-      color: typeDef.color,
-      opacity: typeDef.opacity,
-      isLiquid: typeDef.isLiquid,
-      texture: typeDef.texture || "",
-    });
+    // Extract points — handle both Polygon and MultiPolygon results
+    for (let i = 0; i < merged.getNumGeometries(); i++) {
+      const part = merged.getGeometryN(i);
+      if (part.getArea() < 50) continue;
+      const ring = part.getExteriorRing();
+      if (!ring) continue;
+      kept.push({
+        points: ring.getCoordinates().map((c) => [c.x, c.y]),
+        surfaceType,
+        placement,
+        color: typeDef.color,
+        opacity: typeDef.opacity,
+        isLiquid: typeDef.isLiquid,
+        texture: typeDef.texture || "",
+      });
+    }
     newState.surfaces = kept;
     await this.pushState(newState);
   }
