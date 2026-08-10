@@ -308,21 +308,23 @@ export const smoothPoly = (poly) => {
 };
 
 /**
- * Split dungeon geometry into individual room polygons using interior walls.
- * Buffers each interior wall into a thin cutting polygon and subtracts it
- * from the main geometry, yielding a MultiPolygon whose components are rooms.
+ * Split dungeon geometry into individual room polygons using interior walls
+ * and doors as cutting boundaries. Works with both hand-drawn dungeons
+ * (interior walls) and procedurally generated ones (doors mark room boundaries).
  *
  * @param {Geometry} geometry - The main dungeon geometry (Polygon or MultiPolygon)
  * @param {Array} interiorWalls - Array of [x1, y1, x2, y2] wall segments
  * @param {Array} interiorWallShapes - Array of [[x,y],...] wall shape point arrays
  * @param {number} wallThickness - Wall thickness from config (used for cut width)
+ * @param {Array} doors - Array of [x1, y1, x2, y2] door segments (optional)
  * @returns {Geometry[]} Array of individual room Polygon geometries
  */
 export const splitIntoRooms = (
   geometry,
   interiorWalls,
   interiorWallShapes,
-  wallThickness
+  wallThickness,
+  doors
 ) => {
   if (!geometry) return [];
 
@@ -346,6 +348,17 @@ export const splitIntoRooms = (
       remaining = OverlayOp.difference(remaining, buffered);
     } catch (e) {
       // skip invalid shapes
+    }
+  }
+
+  // Cut along doors — these mark room boundaries in generated dungeons
+  for (const door of doors || []) {
+    const doorLine = twoPointsToLineString(door[0], door[1], door[2], door[3]);
+    const doorPoly = BufferOp.bufferOp(doorLine, cutWidth);
+    try {
+      remaining = OverlayOp.difference(remaining, doorPoly);
+    } catch (e) {
+      // skip
     }
   }
 
@@ -376,13 +389,15 @@ export const findRoomAtPoint = (
   interiorWallShapes,
   wallThickness,
   x,
-  y
+  y,
+  doors
 ) => {
   const rooms = splitIntoRooms(
     geometry,
     interiorWalls,
     interiorWallShapes,
-    wallThickness
+    wallThickness,
+    doors
   );
   const point = new GeometryFactory().createPoint(new Coordinate(x, y));
   for (const room of rooms) {
@@ -409,13 +424,15 @@ export const getAllRooms = (
   geometry,
   interiorWalls,
   interiorWallShapes,
-  wallThickness
+  wallThickness,
+  doors
 ) => {
   const rooms = splitIntoRooms(
     geometry,
     interiorWalls,
     interiorWallShapes,
-    wallThickness
+    wallThickness,
+    doors
   );
   return rooms.map((room) => ({
     room,

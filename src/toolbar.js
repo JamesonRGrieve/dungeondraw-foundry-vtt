@@ -148,6 +148,12 @@ export class DungeonDrawToolbar extends Application {
           isActive: game.activeDungeonDrawTool === "themepainter",
         },
         {
+          name: "roomselector",
+          title: "DD.ButtonTitleRoomSelector",
+          icon: "fas fa-hand-pointer",
+          isActive: game.activeDungeonDrawTool === "roomselector",
+        },
+        {
           name: "roompainter",
           title: "DD.ButtonTitleRoomPainter",
           icon: "fas fa-fill-drip",

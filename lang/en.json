@@ -23,6 +23,7 @@
   "DD.ButtonTitleStairs": "Stairs",
   "DD.ButtonTitleWindow": "Window",
   "DD.ButtonTitleThemePainter": "Theme Painter",
+  "DD.ButtonTitleRoomSelector": "Room Selector (hover to highlight rooms)",
   "DD.ButtonTitleRoomPainter": "Room Painter (click a room to apply theme)",
   "DD.ButtonTitleClearRoomThemes": "Clear All Room Themes",
   "DD.ButtonTitleUndo": "Undo",
