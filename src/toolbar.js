@@ -153,6 +153,12 @@ export class DungeonDrawToolbar extends Application {
           icon: "fas fa-fill-drip",
           isActive: game.activeDungeonDrawTool === "roompainter",
         },
+        {
+          name: "clearroomthemes",
+          title: "DD.ButtonTitleClearRoomThemes",
+          icon: "fas fa-broom",
+          isButton: true,
+        },
       ],
       themeKeys,
       themeOptions,
@@ -183,6 +189,13 @@ export class DungeonDrawToolbar extends Application {
 
   controlToolClick(event) {
     const activeTool = $(event.currentTarget).data("tool");
+
+    // Handle button-style tools (no active state, just an action)
+    if (activeTool === "clearroomthemes") {
+      canvas.dungeon?.dungeon?.clearAllRoomThemes();
+      return;
+    }
+
     // Clean up stairs preview state when switching away from stairs tool
     if (game.activeDungeonDrawTool === "stairs" && activeTool !== "stairs") {
       canvas.dungeon?._resetStairsState?.();

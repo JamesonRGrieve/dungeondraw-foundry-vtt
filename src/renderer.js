@@ -253,40 +253,55 @@ const renderPass = async (container, state) => {
 };
 
 const drawThemeAreas = async (container, state) => {
-  for (const area of state.themeAreas) {
-    // hacky way to pass down the actual theme to paint
-    const areaState = state.clone();
-    areaState.config = area.config;
-    // For now, just keep certain values from the main state config,
-    // so the dungeon doors etc look consistent at meet up areas
-    areaState.config.doorColor = state.config.doorColor;
-    areaState.config.doorFillColor = state.config.doorFillColor;
-    areaState.config.doorFillOpacity = state.config.doorFillOpacity;
-    areaState.config.doorThickness = state.config.doorThickness;
-    if (areaState.config.matchBaseWalls) {
-      areaState.config.wallColor = state.config.wallColor;
-      areaState.config.wallTexture = state.config.wallTexture;
-      areaState.config.wallTextureTint = state.config.wallTextureTint;
-      areaState.config.wallThickness = state.config.wallThickness;
+  // Draw room-registry rooms as theme areas
+  if (state.geometry && state.rooms && Object.keys(state.rooms).length > 0) {
+    const detectedRooms = geo.getAllRooms(
+      state.geometry,
+      state.interiorWalls,
+      state.interiorWallShapes || [],
+      state.config.wallThickness
+    );
+    for (const { id, points } of detectedRooms) {
+      const roomEntry = state.rooms[id];
+      if (!roomEntry) continue;
+      const area = { points, config: roomEntry.config };
+      await drawSingleThemeArea(container, state, area);
     }
-    areaState.config.exteriorShadowOpacity = 0.0; // don't draw additional exterior shadows
-
-    // mask for our area shape
-    const areaContainer = new PIXI.Container();
-    const areaMask = new PIXI.Graphics();
-    areaMask.beginFill(0xffffff, 1.0);
-    areaMask.drawPolygon(area.points.flat());
-    areaMask.endFill();
-    areaContainer.mask = areaMask;
-
-    // render the theme, clipping to our rectangle
-    const clipPoly = geo.pointsToPolygon(area.points);
-    await renderPass(areaContainer, areaState, { clipPoly });
-
-    // TODO: verify mask add
-    container.addChild(areaMask);
-    container.addChild(areaContainer);
   }
+
+  // Draw legacy hand-painted theme areas
+  for (const area of state.themeAreas) {
+    await drawSingleThemeArea(container, state, area);
+  }
+};
+
+const drawSingleThemeArea = async (container, state, area) => {
+  const areaState = state.clone();
+  areaState.config = area.config;
+  areaState.config.doorColor = state.config.doorColor;
+  areaState.config.doorFillColor = state.config.doorFillColor;
+  areaState.config.doorFillOpacity = state.config.doorFillOpacity;
+  areaState.config.doorThickness = state.config.doorThickness;
+  if (areaState.config.matchBaseWalls) {
+    areaState.config.wallColor = state.config.wallColor;
+    areaState.config.wallTexture = state.config.wallTexture;
+    areaState.config.wallTextureTint = state.config.wallTextureTint;
+    areaState.config.wallThickness = state.config.wallThickness;
+  }
+  areaState.config.exteriorShadowOpacity = 0.0;
+
+  const areaContainer = new PIXI.Container();
+  const areaMask = new PIXI.Graphics();
+  areaMask.beginFill(0xffffff, 1.0);
+  areaMask.drawPolygon(area.points.flat());
+  areaMask.endFill();
+  areaContainer.mask = areaMask;
+
+  const clipPoly = geo.pointsToPolygon(area.points);
+  await renderPass(areaContainer, areaState, { clipPoly });
+
+  container.addChild(areaMask);
+  container.addChild(areaContainer);
 };
 
 /** Try-catch wrapper around loadTexture. */

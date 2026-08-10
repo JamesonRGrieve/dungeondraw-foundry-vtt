@@ -811,16 +811,34 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
 
   async removeThemeAreaAtPoint(x, y) {
     const state = this.state();
+    const point = geo.pointsToPolygon([
+      [x - 1, y - 1],
+      [x + 1, y - 1],
+      [x + 1, y + 1],
+      [x - 1, y + 1],
+      [x - 1, y - 1],
+    ]);
+
+    // Check room registry first
+    const hit = geo.findRoomAtPoint(
+      state.geometry,
+      state.interiorWalls,
+      state.interiorWallShapes || [],
+      state.config.wallThickness,
+      x,
+      y
+    );
+    if (hit && state.rooms[hit.id]) {
+      const newState = state.clone();
+      delete newState.rooms[hit.id];
+      await this.pushState(newState);
+      return;
+    }
+
+    // Fall back to legacy themeAreas
     const areasToKeep = state.themeAreas.filter((a) => {
       try {
         const areaPoly = geo.pointsToPolygon(a.points);
-        const point = geo.pointsToPolygon([
-          [x - 1, y - 1],
-          [x + 1, y - 1],
-          [x + 1, y + 1],
-          [x - 1, y + 1],
-          [x - 1, y - 1],
-        ]);
         return !geo.intersects(areaPoly, point);
       } catch (e) {
         return true;
@@ -837,7 +855,7 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
     const state = this.state();
     if (!state.geometry) return;
 
-    const room = geo.findRoomAtPoint(
+    const hit = geo.findRoomAtPoint(
       state.geometry,
       state.interiorWalls,
       state.interiorWallShapes || [],
@@ -845,20 +863,23 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
       x,
       y
     );
-    if (!room) return;
-
-    const coords = room.getExteriorRing().getCoordinates();
-    const points = coords.map((c) => [c.x, c.y]);
+    if (!hit) return;
 
     const themeKey = getThemePainterThemeKey();
     const theme = getTheme(themeKey);
 
-    const newArea = {
-      points,
+    const newState = state.clone();
+    newState.rooms[hit.id] = {
       config: theme.config,
     };
+    await this.pushState(newState);
+  }
+
+  async clearAllRoomThemes() {
+    const state = this.state();
+    if (Object.keys(state.rooms).length === 0) return;
     const newState = state.clone();
-    newState.themeAreas.push(newArea);
+    newState.rooms = {};
     await this.pushState(newState);
   }
 

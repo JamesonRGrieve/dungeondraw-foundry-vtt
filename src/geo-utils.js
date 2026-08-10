@@ -368,7 +368,7 @@ export const splitIntoRooms = (
  * @param {number} wallThickness - Wall thickness from config
  * @param {number} x - Click x coordinate
  * @param {number} y - Click y coordinate
- * @returns {Geometry|null} The room polygon containing the point, or null
+ * @returns {{room: Geometry, id: string}|null} The room polygon and its stable ID, or null
  */
 export const findRoomAtPoint = (
   geometry,
@@ -387,10 +387,44 @@ export const findRoomAtPoint = (
   const point = new GeometryFactory().createPoint(new Coordinate(x, y));
   for (const room of rooms) {
     if (room.contains(point)) {
-      return room;
+      return { room, id: roomId(room) };
     }
   }
   return null;
+};
+
+/**
+ * Generate a stable ID for a room polygon based on its centroid.
+ * Rounds to integer coords so minor floating-point drift doesn't change the ID.
+ */
+export const roomId = (roomGeometry) => {
+  const centroid = roomGeometry.getCentroid();
+  return `room_${Math.round(centroid.getX())}_${Math.round(centroid.getY())}`;
+};
+
+/**
+ * Get all rooms with their IDs from the current geometry.
+ */
+export const getAllRooms = (
+  geometry,
+  interiorWalls,
+  interiorWallShapes,
+  wallThickness
+) => {
+  const rooms = splitIntoRooms(
+    geometry,
+    interiorWalls,
+    interiorWallShapes,
+    wallThickness
+  );
+  return rooms.map((room) => ({
+    room,
+    id: roomId(room),
+    points: room
+      .getExteriorRing()
+      .getCoordinates()
+      .map((c) => [c.x, c.y]),
+  }));
 };
 
 /**
