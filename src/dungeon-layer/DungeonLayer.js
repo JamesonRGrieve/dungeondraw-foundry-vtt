@@ -1,5 +1,6 @@
 import { Dungeon } from "../dungeon.js";
 import { regenerate } from "../generator.js";
+import * as geo from "../geo-utils.js";
 import { GridPainterHelper } from "../GridPainterHelper.js";
 import { Settings } from "../settings.js";
 import { SNAP_MODES } from "../constants.js";
@@ -426,6 +427,12 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
     const { preview, drawingsState, destination } = event.interactionData;
 
     // Handle room painter — single click applies theme to the clicked room
+    if (game.activeDungeonDrawTool === "roomselector" && this.dungeon) {
+      // Room selector: click just locks the highlight (no-op for now,
+      // highlight is shown on hover via _onPointerMove)
+      return;
+    }
+
     if (game.activeDungeonDrawTool === "roompainter" && this.dungeon) {
       const pos = destination || event.interactionData.origin;
       if (game.activeDungeonDrawMode === "add") {
@@ -481,7 +488,73 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
       const pos = event.getLocalPosition(this);
       this._updateStairsPreview(pos);
     }
+
+    // Room selector / room painter hover highlight
+    if (
+      (game.activeDungeonDrawTool === "roomselector" ||
+        game.activeDungeonDrawTool === "roompainter") &&
+      this.dungeon
+    ) {
+      const pos = event.getLocalPosition(this);
+      this._updateRoomHighlight(pos.x, pos.y);
+    }
+
     super._onPointerMove(event);
+  }
+
+  _updateRoomHighlight(x, y) {
+    const state = this.dungeon?.state();
+    if (!state?.geometry) {
+      this._clearRoomHighlight();
+      return;
+    }
+
+    const hit = geo.findRoomAtPoint(
+      state.geometry,
+      state.interiorWalls,
+      state.interiorWallShapes || [],
+      state.config.wallThickness,
+      x,
+      y,
+      state.doors
+    );
+
+    if (!hit) {
+      this._clearRoomHighlight();
+      return;
+    }
+
+    // Skip redraw if same room
+    if (this._highlightedRoomId === hit.id) return;
+    this._highlightedRoomId = hit.id;
+
+    if (!this._roomHighlightGfx) {
+      this._roomHighlightGfx = new PIXI.Graphics();
+      this.addChild(this._roomHighlightGfx);
+    }
+
+    const gfx = this._roomHighlightGfx;
+    gfx.clear();
+
+    const hasTheme = state.rooms && state.rooms[hit.id];
+    const color = hasTheme ? 0x44ff44 : 0x4488ff;
+
+    const coords = hit.room
+      .getExteriorRing()
+      .getCoordinates()
+      .map((c) => [c.x, c.y])
+      .flat();
+    gfx.beginFill(color, 0.2);
+    gfx.lineStyle({ width: 2, color, alpha: 0.8 });
+    gfx.drawPolygon(coords);
+    gfx.endFill();
+  }
+
+  _clearRoomHighlight() {
+    if (this._roomHighlightGfx) {
+      this._roomHighlightGfx.clear();
+      this._highlightedRoomId = null;
+    }
   }
 
   /** @override */
@@ -549,7 +622,11 @@ export class DungeonLayer extends foundry.canvas.layers.PlaceablesLayer {
   /** @override */
   async _onDragLeftStart(event) {
     // Room painter is click-only, no drag drawing
-    if (game.activeDungeonDrawTool === "roompainter") return;
+    if (
+      game.activeDungeonDrawTool === "roompainter" ||
+      game.activeDungeonDrawTool === "roomselector"
+    )
+      return;
 
     // Deliberately not calling super: as of v14 PlaceablesLayer#_onDragLeftStart
     // builds its own core Drawing preview out of the active tool's palette data,

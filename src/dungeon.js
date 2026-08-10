@@ -831,7 +831,8 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
       state.interiorWallShapes || [],
       state.config.wallThickness,
       x,
-      y
+      y,
+      state.doors
     );
     if (hit && state.rooms[hit.id]) {
       const newState = state.clone();
@@ -865,7 +866,8 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
       state.interiorWallShapes || [],
       state.config.wallThickness,
       x,
-      y
+      y,
+      state.doors
     );
     if (!hit) return;
 

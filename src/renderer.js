@@ -346,7 +346,8 @@ const drawThemeAreas = async (container, state) => {
       state.geometry,
       state.interiorWalls,
       state.interiorWallShapes || [],
-      state.config.wallThickness
+      state.config.wallThickness,
+      state.doors
     );
     for (const { id, points } of detectedRooms) {
       const roomEntry = state.rooms[id];
