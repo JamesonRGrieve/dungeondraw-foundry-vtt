@@ -856,6 +856,96 @@ export class Dungeon extends foundry.canvas.placeables.PlaceableObject {
     await this.addSurface(points);
   }
 
+  async addBrushedSurface(pathPoints, brushRadius) {
+    if (!pathPoints || pathPoints.length < 2) return;
+    const coords = pathPoints.map((p) => new geo.Coordinate(p.x, p.y));
+    const line = new geo.GeometryFactory().createLineString(coords);
+    const brushPoly = geo.expandGeometry(line, brushRadius);
+    if (!brushPoly || brushPoly.isEmpty()) return;
+
+    const surfaceType = getSurfacePainterType();
+    const placement = getSurfacePainterPlacement();
+    const typeDef = surfaceTypes[surfaceType] || surfaceTypes.water;
+    const newState = this.history[this.historyIndex].clone();
+
+    // Merge with existing surfaces of the same type + placement
+    let merged = brushPoly;
+    const kept = [];
+    for (const s of newState.surfaces) {
+      if (s.surfaceType === surfaceType && s.placement === placement) {
+        try {
+          const existing = geo.pointsToPolygon(s.points);
+          if (geo.intersects(merged, existing)) {
+            merged = geo.union(merged, existing);
+            continue;
+          }
+        } catch (e) {
+          // keep surfaces that fail geometry ops
+        }
+      }
+      kept.push(s);
+    }
+
+    const mergedCoords = merged
+      .getExteriorRing()
+      .getCoordinates()
+      .map((c) => [c.x, c.y]);
+    kept.push({
+      points: mergedCoords,
+      surfaceType,
+      placement,
+      color: typeDef.color,
+      opacity: typeDef.opacity,
+      isLiquid: typeDef.isLiquid,
+      texture: typeDef.texture || "",
+    });
+    newState.surfaces = kept;
+    await this.pushState(newState);
+  }
+
+  async eraseBrushedSurface(pathPoints, brushRadius) {
+    if (!pathPoints || pathPoints.length < 2) return;
+    const coords = pathPoints.map((p) => new geo.Coordinate(p.x, p.y));
+    const line = new geo.GeometryFactory().createLineString(coords);
+    const erasePoly = geo.expandGeometry(line, brushRadius);
+    if (!erasePoly || erasePoly.isEmpty()) return;
+
+    const oldState = this.history[this.historyIndex];
+    const newSurfaces = [];
+    let changed = false;
+
+    for (const s of oldState.surfaces) {
+      try {
+        const existing = geo.pointsToPolygon(s.points);
+        if (!geo.intersects(erasePoly, existing)) {
+          newSurfaces.push(s);
+          continue;
+        }
+        changed = true;
+        const remainder = geo.difference(existing, erasePoly);
+        if (!remainder || remainder.isEmpty()) continue;
+        // Split MultiPolygon into separate surfaces
+        for (let i = 0; i < remainder.getNumGeometries(); i++) {
+          const part = remainder.getGeometryN(i);
+          if (part.getArea() < 100) continue;
+          const partCoords = part
+            .getExteriorRing()
+            .getCoordinates()
+            .map((c) => [c.x, c.y]);
+          newSurfaces.push({ ...s, points: partCoords });
+        }
+      } catch (e) {
+        newSurfaces.push(s);
+      }
+    }
+
+    if (changed) {
+      const newState = oldState.clone();
+      newState.surfaces = newSurfaces;
+      await this.pushState(newState);
+    }
+  }
+
   async removeSurfaces(rect) {
     const rectPoly = geo.rectToPolygon(rect);
     const oldState = this.history[this.historyIndex];

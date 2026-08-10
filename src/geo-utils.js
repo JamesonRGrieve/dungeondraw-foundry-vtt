@@ -333,3 +333,5 @@ export const maybeSplitWall = (x1, y1, x2, y2, doors) => {
   // wall didn't contain any door, so return as-is
   return [[x1, y1, x2, y2]];
 };
+
+export { Coordinate, GeometryFactory };

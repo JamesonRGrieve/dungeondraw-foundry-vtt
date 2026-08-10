@@ -153,6 +153,7 @@
   "DD.KeybindingThemePainter": "Tool: Theme Painter",
   "DD.KeybindingAddMode": "Mode: Add",
   "DD.KeybindingRemoveMode": "Mode: Remove",
+  "DD.DrawMode.Brush": "Brush",
   "DD.DrawMode.Line": "Line",
   "DD.DrawMode.Square": "Square",
   "DD.DrawMode.Ellipse": "Ellipse",
